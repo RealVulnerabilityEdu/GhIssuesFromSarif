@@ -241,6 +241,7 @@ def main(
     if not issue_list:
         print("No vulnerabilities found in the SARIF file",
               file=sys.stderr)
+        return
     if human_readable:
         disp_issue_list(issue_list)
     if output_dir:
