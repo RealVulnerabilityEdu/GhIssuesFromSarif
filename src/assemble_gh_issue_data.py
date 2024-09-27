@@ -1,14 +1,18 @@
 """Process Sarif file and assemble data for GH issue creation
 
-   This initial version does not use any Sarif library to process the file.
+   This initial version does not use any Sarif library to process the file
+   and it also does not depends on any external python packages.
+   
+   Tested with Python 3.11.
 """
 import argparse
 import csv
 import json
 import pathlib
+import sys
 import urllib
-import urllib.request
 import urllib.parse
+import urllib.request
 
 
 def parse_cmdline():
@@ -39,6 +43,22 @@ def parse_cmdline():
         "vul_helper_root",
         type=str,
         help="Root directory/URL of the vulnerability reference",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="issues",
+        help="Output directory to save the issue data",
+        required=False,
+        dest="output_dir",
+    )
+    parser.add_argument(
+        "--output-human-readable",
+        type=bool,
+        default=False,
+        help="Output human readable issue data",
+        required=False,
+        dest="human_readable",
     )
     return parser.parse_args()
 
@@ -104,6 +124,7 @@ def get_gh_code_snippet_msg(gh_org, repo_name, commit_sha, message, location, re
     msg += f"{snippet_url}\n\n"
     return msg
 
+
 def get_uri(uri_like):
     p = urllib.parse.urlparse(uri_like)
     if not p.scheme:
@@ -112,26 +133,30 @@ def get_uri(uri_like):
         uri = uri_like
     return uri
 
+
 def escape_github_markdown(text):
     # https://github.com/mattcone/markdown-guide/blob/master/_basic-syntax/escaping-characters.md
     special_chars = [
-        "\\", #	backslash
-        r"`", #	backtick (see also escaping backticks in code)
-        r"*", #	asterisk
-        r"",  #	underscore
-        r"{", r"}", # curly braces
-        r"[", r"]", # brackets
-        r"<", r">", # angle brackets
-        r"(", r")", # parentheses
-        r"#", #	pound sign
-        r"+", #	plus sign
-        r"-", #	minus sign (hyphen)
-        r".", #	dot
-        r"!", #	exclamation mark
-        r"|", #	pipe (see also escaping pipe in tables)
+        "\\",  # 	backslash
+        r"`",  # 	backtick (see also escaping backticks in code)
+        r"*",  # 	asterisk
+        r"",  # 	underscore
+        r"{",
+        r"}",  # curly braces
+        r"[",
+        r"]",  # brackets
+        r"<",
+        r">",  # angle brackets
+        r"(",
+        r")",  # parentheses
+        r"#",  # 	pound sign
+        r"+",  # 	plus sign
+        r"-",  # 	minus sign (hyphen)
+        r".",  # 	dot
+        r"!",  # 	exclamation mark
+        r"|",  # 	pipe (see also escaping pipe in tables)
     ]
-    c_list = [f"\\{c}" if c in special_chars else c
-              for c in text]
+    c_list = [f"\\{c}" if c in special_chars else c for c in text]
     return "".join(c_list)
 
 
@@ -142,7 +167,8 @@ def load_vul_rule_help_mapping(file_path):
         reader = csv.DictReader(csvfile.read().decode("utf-8").splitlines())
         for row in reader:
             mapping[row["rule_id"]] = row["qhelp_md_path"]
-    return mapping 
+    return mapping
+
 
 def get_vulnerability_help_msg(helper_root, mapping, rule_id):
     help_uri = get_uri(f"{helper_root}/{mapping[rule_id]}")
@@ -151,7 +177,7 @@ def get_vulnerability_help_msg(helper_root, mapping, rule_id):
     return help_md
 
 
-def main(sarif_file, gh_org, repo_name, commit_sha, vul_helper_root):
+def make_issue_list(sarif_file, gh_org, repo_name, commit_sha, vul_helper_root):
     with open(sarif_file, mode="rt", encoding="utf-8") as f:
         sarif_data = json.load(f)
     if "runs" not in sarif_data:
@@ -186,12 +212,40 @@ def main(sarif_file, gh_org, repo_name, commit_sha, vul_helper_root):
                 "body": f"{snippet_md}\n\n{help_md}",
             }
             issue_list.append(issue)
-    print(json.dumps(issue_list, indent=2))
-    for i in issue_list:
-        print(i["title"])
-        print(i["body"])
-        print("\n")
+    return issue_list
 
+
+def disp_issue_list(issue_list):
+    # print(json.dumps(issue_list, indent=2))
+    for idx, issue in enumerate(issue_list):
+        print(f"\n\n-------- Issue {idx} ---------")
+        print(issue["title"])
+        print(issue["body"])
+        print("\n\n")
+
+def save_issue_list(issue_list, output_dir):
+    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    for idx, issue in enumerate(issue_list):
+        title_file_path = f"{output_dir}/issue_{idx}_title.md"
+        with open(title_file_path, mode="wt", encoding="utf-8") as f:
+            f.write(f"# {issue['title']}\n\n")
+        body_file_path = f"{output_dir}/issue_{idx}_body.md"
+        with open(body_file_path, mode="wt", encoding="utf-8") as f:
+            f.write(issue["body"])
+        print(
+            f"Saved issue {idx} to {title_file_path} and {body_file_path}",
+            file=sys.stderr)
+
+def main(
+    sarif_file, gh_org, repo_name, commit_sha, vul_helper_root,
+    output_dir, human_readable):
+    issue_list = make_issue_list(
+        sarif_file, gh_org, repo_name, commit_sha, vul_helper_root
+    )
+    if human_readable:
+        disp_issue_list(issue_list)
+    if output_dir:
+        save_issue_list(issue_list, output_dir)
 
 if __name__ == "__main__":
     args = parse_cmdline()
@@ -200,5 +254,7 @@ if __name__ == "__main__":
         args.gh_org,
         args.repo_name,
         args.commit_sha,
-        args.vul_helper_root
+        args.vul_helper_root,
+        args.output_dir,
+        args.human_readable,
     )
