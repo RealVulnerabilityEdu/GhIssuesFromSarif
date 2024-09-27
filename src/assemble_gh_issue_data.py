@@ -167,7 +167,7 @@ def load_vul_rule_help_mapping(file_path):
 
 def get_vulnerability_help_msg(helper_root, mapping, rule_id):
     help_uri = get_uri(f"{helper_root}/{mapping[rule_id]}")
-    with urllib.request.urlopen(help_uri) as f:
+    with urllib.request.urlopen(help_uri.replace(" ", "%20")) as f:
         help_md = f.read().decode("utf-8")
     return help_md
 
