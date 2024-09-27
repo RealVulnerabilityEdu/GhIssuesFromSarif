@@ -238,6 +238,9 @@ def main(
     sarif_file, repository, commit_sha, vul_helper_root, output_dir, human_readable
 ):
     issue_list = make_issue_list(sarif_file, repository, commit_sha, vul_helper_root)
+    if not issue_list:
+        print("No vulnerabilities found in the SARIF file",
+              file=sys.stderr)
     if human_readable:
         disp_issue_list(issue_list)
     if output_dir:
