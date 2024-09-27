@@ -25,14 +25,12 @@ def parse_cmdline():
         help="Path to the SARIF file containing vulnerability data",
     )
     parser.add_argument(
-        "gh_org",
+        "repository",
         type=str,
-        help="GitHub organization/user name",
-    )
-    parser.add_argument(
-        "repo_name",
-        type=str,
-        help="Name of the repository containing the vulnerabilities",
+        help=(
+            "Name (owner/repo_name) of the GitHub repository "
+            "containing the vulnerabilities",
+        ),
     )
     parser.add_argument(
         "commit_sha",
@@ -63,33 +61,32 @@ def parse_cmdline():
     return parser.parse_args()
 
 
-def get_gh_code_snippet_single_line(gh_org, repo_name, commit_sha, location, region):
+def get_gh_code_snippet_single_line(repository, commit_sha, location, region):
     line_no = region["startLine"]
     snippet_url = (
-        f"https://github.com/{gh_org}/{repo_name}/blob/"
-        f"{commit_sha}/{location}#L{line_no}"
+        f"https://github.com/{repository}/blob/" f"{commit_sha}/{location}#L{line_no}"
     )
     return snippet_url
 
 
-def get_gh_code_snippet_multi_line(gh_org, repo_name, commit_sha, location, region):
+def get_gh_code_snippet_multi_line(repository, commit_sha, location, region):
     line_no_begin = region["startLine"]
     line_no_end = region["endLine"]
     snippet_url = (
-        f"https://github.com/{gh_org}/{repo_name}/blob/{commit_sha}/"
+        f"https://github.com/{repository}/blob/{commit_sha}/"
         f"{location}#L{line_no_begin}-L{line_no_end}"
     )
     return snippet_url
 
 
-def get_gh_code_snippet_url(gh_org, repo_name, commit_sha, location, region):
+def get_gh_code_snippet_url(repository, commit_sha, location, region):
     if "endLine" not in region:
         snippet_url = get_gh_code_snippet_single_line(
-            gh_org, repo_name, commit_sha, location, region
+            repository, commit_sha, location, region
         )
     else:
         snippet_url = get_gh_code_snippet_multi_line(
-            gh_org, repo_name, commit_sha, location, region
+            repository, commit_sha, location, region
         )
     return snippet_url
 
@@ -106,12 +103,10 @@ def make_context_region(region, context_lines=3, location=None):
     return {"startLine": start_line, "endLine": end_line}
 
 
-def get_gh_code_snippet_msg(gh_org, repo_name, commit_sha, message, location, region):
+def get_gh_code_snippet_msg(repository, commit_sha, message, location, region):
     msg = f"We have found a potential software security vulnerablity: {message}: \n\n"
     msg += "The following shows the code snippet where the vulnerability is found:\n\n"
-    snippet_url = get_gh_code_snippet_url(
-        gh_org, repo_name, commit_sha, location, region
-    )
+    snippet_url = get_gh_code_snippet_url(repository, commit_sha, location, region)
     msg += f"{snippet_url}\n\n"
     msg += (
         "The following shows more complete picture with "
@@ -119,7 +114,7 @@ def get_gh_code_snippet_msg(gh_org, repo_name, commit_sha, message, location, re
     )
     context_region = make_context_region(region)
     snippet_url = get_gh_code_snippet_url(
-        gh_org, repo_name, commit_sha, location, context_region
+        repository, commit_sha, location, context_region
     )
     msg += f"{snippet_url}\n\n"
     return msg
@@ -177,7 +172,7 @@ def get_vulnerability_help_msg(helper_root, mapping, rule_id):
     return help_md
 
 
-def make_issue_list(sarif_file, gh_org, repo_name, commit_sha, vul_helper_root):
+def make_issue_list(sarif_file, repository, commit_sha, vul_helper_root):
     with open(sarif_file, mode="rt", encoding="utf-8") as f:
         sarif_data = json.load(f)
     if "runs" not in sarif_data:
@@ -204,7 +199,7 @@ def make_issue_list(sarif_file, gh_org, repo_name, commit_sha, vul_helper_root):
             region = r["locations"][0]["physicalLocation"]["region"]
 
             snippet_md = get_gh_code_snippet_msg(
-                gh_org, repo_name, commit_sha, message, location, region
+                repository, commit_sha, message, location, region
             )
             help_md = get_vulnerability_help_msg(vul_helper_root, mapping, rule_id)
             issue = {
@@ -223,6 +218,7 @@ def disp_issue_list(issue_list):
         print(issue["body"])
         print("\n\n")
 
+
 def save_issue_list(issue_list, output_dir):
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     for idx, issue in enumerate(issue_list):
@@ -234,25 +230,25 @@ def save_issue_list(issue_list, output_dir):
             f.write(issue["body"])
         print(
             f"Saved issue {idx} to {title_file_path} and {body_file_path}",
-            file=sys.stderr)
+            file=sys.stderr,
+        )
+
 
 def main(
-    sarif_file, gh_org, repo_name, commit_sha, vul_helper_root,
-    output_dir, human_readable):
-    issue_list = make_issue_list(
-        sarif_file, gh_org, repo_name, commit_sha, vul_helper_root
-    )
+    sarif_file, repository, commit_sha, vul_helper_root, output_dir, human_readable
+):
+    issue_list = make_issue_list(sarif_file, repository, commit_sha, vul_helper_root)
     if human_readable:
         disp_issue_list(issue_list)
     if output_dir:
         save_issue_list(issue_list, output_dir)
 
+
 if __name__ == "__main__":
     args = parse_cmdline()
     main(
         args.sarif_file,
-        args.gh_org,
-        args.repo_name,
+        args.repository,
         args.commit_sha,
         args.vul_helper_root,
         args.output_dir,
