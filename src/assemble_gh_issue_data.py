@@ -113,7 +113,7 @@ def get_gh_code_snippet_msg(repository, commit_sha, message, location, region):
         "The following shows more complete picture with "
         "lines above and below the vulnerable code:\n\n"
     )
-    context_region = make_context_region(region)
+    context_region = make_context_region(region, location=location)
     snippet_url = get_gh_code_snippet_url(
         repository, commit_sha, location, context_region
     )
