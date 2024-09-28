@@ -104,6 +104,7 @@ def make_context_region(region, context_lines=3, location=None):
 
 
 def get_gh_code_snippet_msg(repository, commit_sha, message, location, region):
+    message = escape_github_markdown(message)
     msg = f"We have found a potential software security vulnerablity: {message}: \n\n"
     msg += "The following shows the code snippet where the vulnerability is found:\n\n"
     snippet_url = get_gh_code_snippet_url(repository, commit_sha, location, region)
@@ -131,25 +132,31 @@ def get_uri(uri_like):
 
 def escape_github_markdown(text):
     # https://github.com/mattcone/markdown-guide/blob/master/_basic-syntax/escaping-characters.md
+    # special_chars = [
+    #     "\\",  # 	backslash
+    #     r"`",  # 	backtick (see also escaping backticks in code)
+    #     r"*",  # 	asterisk
+    #     r"",  # 	underscore
+    #     r"{",
+    #     r"}",  # curly braces
+    #     r"[",
+    #     r"]",  # brackets
+    #     r"<",
+    #     r">",  # angle brackets
+    #     r"(",
+    #     r")",  # parentheses
+    #     r"#",  # 	pound sign
+    #     r"+",  # 	plus sign
+    #     r"-",  # 	minus sign (hyphen)
+    #     r".",  # 	dot
+    #     r"!",  # 	exclamation mark
+    #     r"|",  # 	pipe (see also escaping pipe in tables)
+    # ]
     special_chars = [
-        "\\",  # 	backslash
-        r"`",  # 	backtick (see also escaping backticks in code)
-        r"*",  # 	asterisk
-        r"",  # 	underscore
-        r"{",
-        r"}",  # curly braces
         r"[",
         r"]",  # brackets
-        r"<",
-        r">",  # angle brackets
         r"(",
         r")",  # parentheses
-        r"#",  # 	pound sign
-        r"+",  # 	plus sign
-        r"-",  # 	minus sign (hyphen)
-        r".",  # 	dot
-        r"!",  # 	exclamation mark
-        r"|",  # 	pipe (see also escaping pipe in tables)
     ]
     c_list = [f"\\{c}" if c in special_chars else c for c in text]
     return "".join(c_list)
