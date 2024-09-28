@@ -224,7 +224,7 @@ def save_issue_list(issue_list, output_dir):
     for idx, issue in enumerate(issue_list):
         title_file_path = f"{output_dir}/issue_{idx}_title.md"
         with open(title_file_path, mode="wt", encoding="utf-8") as f:
-            f.write(f"# {issue['title']}\n\n")
+            f.write(issue["title"])
         body_file_path = f"{output_dir}/issue_{idx}_body.md"
         with open(body_file_path, mode="wt", encoding="utf-8") as f:
             f.write(issue["body"])
