@@ -2,9 +2,9 @@
 
 function is_debugging() {
     if [[ -z ${_SARIF2GHI_MOCKING_FOR_DEBUG_} ]]; then
-        return 0
-    else
         return 1
+    else
+        return 0
     fi
 }
 
