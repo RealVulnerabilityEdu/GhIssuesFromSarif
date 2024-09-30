@@ -4,10 +4,16 @@
    and it also does not depend on any external python packages.
    
    Tested with Python 3.11.
+   
+   For debug purpose, use environment variable to set the location of the 
+   codebase, i.e.,
+   
+      _SARIF2GHISSUE_LOCAL_CODEBASE_LOCATION_=path/to/codebase
 """
 import argparse
 import csv
 import json
+import os
 import pathlib
 import sys
 import urllib
@@ -91,19 +97,27 @@ def get_gh_code_snippet_url(repository, commit_sha, location, region):
     return snippet_url
 
 
-def make_context_region(region, context_lines=3, location=None):
+def make_context_region(region, context_lines=3, location=None, codebase_location=None):
     start_line = region["startLine"]
     end_line = region.get("endLine", start_line)
     start_line = max(1, start_line - context_lines)
     if location:
-        nlines = len(open(location, mode="rt", encoding="utf-8").readlines())
+        if codebase_location:
+            code_location = pathlib.Path(codebase_location).joinpath(
+                urllib.parse.unquote(location)
+            )
+        else:
+            code_location = urllib.parse.unquote(location)
+        nlines = len(open(code_location, mode="rt", encoding="utf-8").readlines())
         end_line = min(end_line + context_lines, nlines)
     else:
         end_line += context_lines
     return {"startLine": start_line, "endLine": end_line}
 
 
-def get_gh_code_snippet_msg(repository, commit_sha, message, location, region):
+def get_gh_code_snippet_msg(
+    repository, commit_sha, message, location, region, codebase_location=None
+):
     message = escape_github_markdown(message)
     msg = f"We have found a potential software security vulnerablity: {message}: \n\n"
     msg += "The following shows the code snippet where the vulnerability is found:\n\n"
@@ -113,7 +127,9 @@ def get_gh_code_snippet_msg(repository, commit_sha, message, location, region):
         "The following shows more complete picture with "
         "lines above and below the vulnerable code:\n\n"
     )
-    context_region = make_context_region(region, location=location)
+    context_region = make_context_region(
+        region, location=location, codebase_location=codebase_location
+    )
     snippet_url = get_gh_code_snippet_url(
         repository, commit_sha, location, context_region
     )
@@ -179,7 +195,9 @@ def get_vulnerability_help_msg(helper_root, mapping, rule_id):
     return help_md
 
 
-def make_issue_list(sarif_file, repository, commit_sha, vul_helper_root):
+def make_issue_list(
+    sarif_file, repository, commit_sha, vul_helper_root, local_codebase_location=None
+):
     with open(sarif_file, mode="rt", encoding="utf-8") as f:
         sarif_data = json.load(f)
     if "runs" not in sarif_data:
@@ -206,7 +224,12 @@ def make_issue_list(sarif_file, repository, commit_sha, vul_helper_root):
             region = r["locations"][0]["physicalLocation"]["region"]
 
             snippet_md = get_gh_code_snippet_msg(
-                repository, commit_sha, message, location, region
+                repository,
+                commit_sha,
+                message,
+                location,
+                region,
+                codebase_location=local_codebase_location,
             )
             help_md = get_vulnerability_help_msg(vul_helper_root, mapping, rule_id)
             issue = {
@@ -241,13 +264,22 @@ def save_issue_list(issue_list, output_dir):
         )
 
 
+def get_local_codebase_location():
+    return os.environ.get("_SARIF2GHISSUE_LOCAL_CODEBASE_LOCATION_")
+
+
 def main(
     sarif_file, repository, commit_sha, vul_helper_root, output_dir, human_readable
 ):
-    issue_list = make_issue_list(sarif_file, repository, commit_sha, vul_helper_root)
+    issue_list = make_issue_list(
+        sarif_file,
+        repository,
+        commit_sha,
+        vul_helper_root,
+        local_codebase_location=get_local_codebase_location(),
+    )
     if not issue_list:
-        print("No vulnerabilities found in the SARIF file",
-              file=sys.stderr)
+        print("No vulnerabilities found in the SARIF file", file=sys.stderr)
         return
     if human_readable:
         disp_issue_list(issue_list)
