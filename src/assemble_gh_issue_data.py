@@ -1,5 +1,5 @@
 """Process Sarif file and assemble data for GH issue creation
-p
+
    This initial version does not use any Sarif library to process the file
    and it also does not depend on any external python packages.
 
