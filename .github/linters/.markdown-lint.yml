@@ -1,3 +1,6 @@
+# ignore files
+ignore: data/issue_body_template.md
+
 # Unordered list style
 MD004:
   style: dash

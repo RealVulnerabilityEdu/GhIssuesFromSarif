@@ -15,6 +15,7 @@ def test_create_issue_body_1():
         expected_body = f.read()
     assert actual_body == expected_body
 
+
 def test_create_issue_body_2():
     actual_body = compose_issue_body(
         "data/issue_body_template.md",

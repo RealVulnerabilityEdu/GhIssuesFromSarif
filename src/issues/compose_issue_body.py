@@ -21,7 +21,9 @@ class IssueBodyTemplate:
     def fill(
         self, vulnerability_msg, short_snippet_url, long_code_snippet_url, issue_help
     ):
-        issue_body = self.template.replace("{{vulnerability-message}}", vulnerability_msg)
+        issue_body = self.template.replace(
+            "{{vulnerability-message}}", vulnerability_msg
+        )
         issue_body = issue_body.replace(
             "{{code-snippet-without-context}}", short_snippet_url
         )
