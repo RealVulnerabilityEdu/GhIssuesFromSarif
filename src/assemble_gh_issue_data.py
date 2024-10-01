@@ -1,15 +1,16 @@
 """Process Sarif file and assemble data for GH issue creation
-
+p
    This initial version does not use any Sarif library to process the file
    and it also does not depend on any external python packages.
-   
+
    Tested with Python 3.11.
-   
-   For debug purpose, use environment variable to set the location of the 
+
+   For debug purpose, use environment variable to set the location of the
    codebase, i.e.,
-   
+
       _SARIF2GHISSUE_LOCAL_CODEBASE_LOCATION_=path/to/codebase
 """
+
 import argparse
 import csv
 import json
