@@ -1,11 +1,13 @@
 """Test the compose_issue_body function."""
 
-from issues.compose_issue_body import compose_issue_body
+from assemble_gh_issue_data import compose_issue_body, IssueBodyTemplate
 
 
 def test_create_issue_body_1():
+    issue_body_template = IssueBodyTemplate.load("data/issue_body_template.md")
+
     actual_body = compose_issue_body(
-        "data/issue_body_template.md",
+        issue_body_template,
         "VERY BAD VULNERABILITY 1.",
         "SNIPPET_1",
         "SNIPPET_1_WITH_CONTEXT",
@@ -17,8 +19,9 @@ def test_create_issue_body_1():
 
 
 def test_create_issue_body_2():
+    issue_body_template = IssueBodyTemplate.load("data/issue_body_template.md")
     actual_body = compose_issue_body(
-        "data/issue_body_template.md",
+        issue_body_template,
         "VERY BAD VULNERABILITY #2.",
         "https://SNIPPET_2",
         "https://SNIPPET_2_WITH_CONTEXT",

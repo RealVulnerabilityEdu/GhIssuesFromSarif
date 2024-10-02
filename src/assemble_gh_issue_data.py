@@ -22,9 +22,22 @@ import urllib.parse
 import urllib.request
 
 
+DEFAULT_ISSUE_BODY_TEMPLATE = (
+    "We have found a potential software security vulnerability: "
+    "{{vulnerability-message}}: \n\n"
+    "The following shows the code snippet where the vulnerability is found:\n\n"
+    "{{code-snippet-without-context}}"
+    "The following shows more complete picture with "
+    "lines above and below the vulnerable code:\n\n"
+    "{{code-snippet-with-context}}"
+    "\n\n"
+    "{{vulnerability-help}}"
+)
+
+
 def parse_cmdline():
     parser = argparse.ArgumentParser(
-        description="Assemble software vulnerabiliy data for GH issue creating"
+        description="Assemble software vulnerability data for GH issue creating"
     )
     parser.add_argument(
         "sarif_file",
@@ -48,6 +61,13 @@ def parse_cmdline():
         "vul_helper_root",
         type=str,
         help="Root directory/URL of the vulnerability reference",
+    )
+    parser.add_argument(
+        "--issue-body-template",
+        type=str,
+        default="",
+        help="Path to the issue body template",
+        required=False,
     )
     parser.add_argument(
         "--output-dir",
@@ -138,6 +158,21 @@ def get_gh_code_snippet_msg(
     return msg
 
 
+def get_gh_short_long_code_snippet_urls(
+    repository, commit_sha, location, region, codebase_location=None
+):
+    short_snippet_url = get_gh_code_snippet_url(
+        repository, commit_sha, location, region
+    )
+    context_region = make_context_region(
+        region, location=location, codebase_location=codebase_location
+    )
+    long_snippet_url = get_gh_code_snippet_url(
+        repository, commit_sha, location, context_region
+    )
+    return short_snippet_url, long_snippet_url
+
+
 def get_uri(uri_like):
     p = urllib.parse.urlparse(uri_like)
     if not p.scheme:
@@ -196,9 +231,69 @@ def get_vulnerability_help_msg(helper_root, mapping, rule_id):
     return help_md
 
 
-def make_issue_list(
-    sarif_file, repository, commit_sha, vul_helper_root, local_codebase_location=None
+class IssueBodyTemplate:
+    """Issue body template for GH issue creation"""
+
+    @classmethod
+    def load(cls, template_location):
+        p = urllib.parse.urlparse(template_location)
+        if not p.scheme:
+            uri = pathlib.Path(template_location).resolve().as_uri()
+        else:
+            uri = template_location
+        with urllib.request.urlopen(uri) as f:
+            return f.read().decode("utf-8")
+
+    def __init__(self, issue_template, is_uri=True):
+        if is_uri:
+            self.template = self.load(issue_template)
+        else:
+            self.template = issue_template
+
+    def fill(
+        self, vulnerability_msg, short_snippet_url, long_code_snippet_url, issue_help
+    ):
+        issue_body = self.template.replace(
+            "{{vulnerability-message}}", vulnerability_msg
+        )
+        issue_body = issue_body.replace(
+            "{{code-snippet-without-context}}", short_snippet_url
+        )
+        issue_body = issue_body.replace(
+            "{{code-snippet-with-context}}", long_code_snippet_url
+        )
+        issue_body = issue_body.replace("{{vulnerability-help}}", issue_help)
+        return issue_body
+
+
+def compose_issue_body(
+    issue_template,
+    vulnerability_msg,
+    short_snippet_url,
+    long_code_snippet_url,
+    issue_help,
 ):
+    issue_body_template = IssueBodyTemplate(issue_template, is_uri=False)
+    issue_body = issue_body_template.fill(
+        vulnerability_msg, short_snippet_url, long_code_snippet_url, issue_help
+    )
+    return issue_body
+
+
+def make_issue_list(
+    sarif_file,
+    repository,
+    commit_sha,
+    vul_helper_root,
+    issue_body_template=None,
+    local_codebase_location=None,
+    only_first_location=True,
+):
+    if not issue_body_template:
+        issue_body_template = DEFAULT_ISSUE_BODY_TEMPLATE
+    else:
+        issue_body_template = IssueBodyTemplate.load(issue_body_template)
+
     with open(sarif_file, mode="rt", encoding="utf-8") as f:
         sarif_data = json.load(f)
     if "runs" not in sarif_data:
@@ -220,24 +315,38 @@ def make_issue_list(
 
         for r in results:
             rule_id = r["ruleId"]
-            message = r["message"]["text"]
-            location = r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
-            region = r["locations"][0]["physicalLocation"]["region"]
+            vulnerability_msg = r["message"]["text"]
+            for vul in r["locations"]:
+                location = vul["physicalLocation"]["artifactLocation"]["uri"]
+                region = vul["physicalLocation"]["region"]
 
-            snippet_md = get_gh_code_snippet_msg(
-                repository,
-                commit_sha,
-                message,
-                location,
-                region,
-                codebase_location=local_codebase_location,
-            )
-            help_md = get_vulnerability_help_msg(vul_helper_root, mapping, rule_id)
-            issue = {
-                "title": f"Potential software security vulnerability: {rule_id}",
-                "body": f"{snippet_md}\n\n{help_md}",
-            }
-            issue_list.append(issue)
+                (
+                    short_snippet_url,
+                    long_snippet_url,
+                ) = get_gh_short_long_code_snippet_urls(
+                    repository,
+                    commit_sha,
+                    location,
+                    region,
+                    codebase_location=local_codebase_location,
+                )
+                issue_help_md = get_vulnerability_help_msg(
+                    vul_helper_root, mapping, rule_id
+                )
+                issue_body = compose_issue_body(
+                    issue_body_template,
+                    vulnerability_msg,
+                    short_snippet_url,
+                    long_snippet_url,
+                    issue_help_md,
+                )
+                issue = {
+                    "title": f"Potential software security vulnerability: {rule_id}",
+                    "body": issue_body,
+                }
+                issue_list.append(issue)
+                if only_first_location:
+                    break
     return issue_list
 
 
@@ -270,13 +379,20 @@ def get_local_codebase_location():
 
 
 def main(
-    sarif_file, repository, commit_sha, vul_helper_root, output_dir, human_readable
+    sarif_file,
+    repository,
+    commit_sha,
+    vul_helper_root,
+    issue_body_template,
+    output_dir,
+    human_readable,
 ):
     issue_list = make_issue_list(
         sarif_file,
         repository,
         commit_sha,
         vul_helper_root,
+        issue_body_template=issue_body_template,
         local_codebase_location=get_local_codebase_location(),
     )
     if not issue_list:
@@ -295,6 +411,7 @@ if __name__ == "__main__":
         args.repository,
         args.commit_sha,
         args.vul_helper_root,
+        args.issue_body_template,
         args.output_dir,
         args.human_readable,
     )
