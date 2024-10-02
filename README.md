@@ -1,4 +1,4 @@
-# Generating Issue Data from SARIF Files
+# Assembling Issue Data with SARIF Files
 
 This repository contains the toolkit that generates data that can be used in issue
 tracking systems, such as GitHub Issues. This toolkit has a companion GitHub Action
