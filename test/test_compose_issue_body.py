@@ -1,6 +1,6 @@
 """Test the compose_issue_body function."""
 
-from assemble_gh_issue_data import compose_issue_body, IssueBodyTemplate
+from assemble_gh_issue_data import IssueBodyTemplate, compose_issue_body
 
 
 def test_create_issue_body_1():

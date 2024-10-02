@@ -21,7 +21,6 @@ import urllib
 import urllib.parse
 import urllib.request
 
-
 DEFAULT_ISSUE_BODY_TEMPLATE = (
     "We have found a potential software security vulnerability: "
     "{{vulnerability-message}}: \n\n"
