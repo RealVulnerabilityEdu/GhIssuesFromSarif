@@ -26,6 +26,7 @@ DEFAULT_ISSUE_BODY_TEMPLATE = (
     "{{vulnerability-message}}: \n\n"
     "The following shows the code snippet where the vulnerability is found:\n\n"
     "{{code-snippet-without-context}}"
+    "\n\n"
     "The following shows more complete picture with "
     "lines above and below the vulnerable code:\n\n"
     "{{code-snippet-with-context}}"
@@ -314,7 +315,7 @@ def make_issue_list(
 
         for r in results:
             rule_id = r["ruleId"]
-            vulnerability_msg = r["message"]["text"]
+            vulnerability_msg = escape_github_markdown(r["message"]["text"])
             for vul in r["locations"]:
                 location = vul["physicalLocation"]["artifactLocation"]["uri"]
                 region = vul["physicalLocation"]["region"]
